@@ -1,0 +1,25 @@
+## 开发环境配置
+spring:
+  datasource:
+    url: jdbc:mariadb://192.168.1.250:3308/model_core?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: Aa135790123
+
+  data:
+    redis:
+      host: 192.168.1.201
+      port: 6379
+      password:
+      database: 7
+
+  jpa:
+    show-sql: true
+
+  thymeleaf:
+    cache: false
+
+logging:
+  level:
+    root: INFO
+    com.modelcore: DEBUG
+    org.hibernate.SQL: DEBUG

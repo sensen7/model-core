@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('供应商管理 - ModelCore 超管')}"></head>
+<body class="d-flex flex-column min-vh-100">
+
+<!-- 超管专用导航栏 -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-danger">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/admin/tenants">
+            <i class="bi bi-shield-lock"></i> ModelCore 超管
+        </a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/tenants"><i class="bi bi-building"></i> 租户管理</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/admin/providers"><i class="bi bi-cpu"></i> 供应商管理</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-fill-gear"></i> <span th:text="${username}">admin</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <form action="/logout" method="post">
+                                <button type="submit" class="dropdown-item">
+                                    <i class="bi bi-box-arrow-right"></i> 退出登录
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid mt-4 flex-grow-1">
+
+    <!-- 提示信息 -->
+    <div th:if="${message}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${message}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- 标题 + 新建按钮 -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0"><i class="bi bi-cpu"></i> AI 供应商管理</h4>
+        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
+            <i class="bi bi-plus-circle"></i> 新建供应商
+        </button>
+    </div>
+
+    <!-- 说明提示 -->
+    <div class="alert alert-info py-2 mb-3">
+        <i class="bi bi-info-circle"></i>
+        只要上游服务支持 <strong>OpenAI 兼容接口</strong>（/v1/chat/completions），填写 URL 和 Key 即可接入。
+        创建/启用后 <strong>立即生效</strong>，无需重启服务。
+    </div>
+
+    <!-- 供应商列表 -->
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>名称</th>
+                    <th>API 地址</th>
+                    <th>优先级</th>
+                    <th>超时(ms)</th>
+                    <th>输入价格($/M)</th>
+                    <th>输出价格($/M)</th>
+                    <th>配置状态</th>
+                    <th>健康状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="provider : ${providers}">
+                    <td>
+                        <strong th:text="${provider.name}"></strong>
+                        <div th:if="${provider.modelMapping != null}" class="text-muted small">
+                            <i class="bi bi-arrow-left-right"></i> 含模型映射
+                        </div>
+                    </td>
+                    <td>
+                        <span class="text-truncate d-inline-block" style="max-width:200px;"
+                              th:text="${provider.apiUrl}" th:title="${provider.apiUrl}"></span>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary" th:text="${provider.priority}"></span>
+                    </td>
+                    <td th:text="${provider.timeout}"></td>
+                    <td th:text="${'$' + provider.inputPricePerMillion}"></td>
+                    <td th:text="${'$' + provider.outputPricePerMillion}"></td>
+                    <td>
+                        <span th:if="${provider.status == 'ACTIVE'}" class="badge bg-success">运行中</span>
+                        <span th:if="${provider.status != 'ACTIVE'}" class="badge bg-secondary">已停用</span>
+                    </td>
+                    <td th:attr="data-health-name=${provider.name}">
+                        <!-- ACTIVE 且不在不健康集合中 → 健康；ACTIVE 但在不健康集合中 → 异常；INACTIVE → 不适用 -->
+                        <span th:if="${provider.status == 'ACTIVE' and !unhealthyNames.contains(provider.name)}"
+                              class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> 正常
+                        </span>
+                        <span th:if="${provider.status == 'ACTIVE' and unhealthyNames.contains(provider.name)}"
+                              class="badge bg-danger">
+                            <i class="bi bi-exclamation-triangle"></i> 异常
+                        </span>
+                        <span th:if="${provider.status != 'ACTIVE'}" class="badge bg-light text-muted">
+                            —
+                        </span>
+                    </td>
+                    <td th:text="${#temporals.format(provider.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <!-- 编辑 -->
+                            <button class="btn btn-outline-primary btn-sm"
+                                    onclick="openEditModal(this)"
+                                    th:data-id="${provider.id}"
+                                    th:data-name="${provider.name}"
+                                    th:data-api-url="${provider.apiUrl}"
+                                    th:data-api-key="${provider.apiKey}"
+                                    th:data-priority="${provider.priority}"
+                                    th:data-timeout="${provider.timeout}"
+                                    th:data-input-price="${provider.inputPricePerMillion}"
+                                    th:data-output-price="${provider.outputPricePerMillion}"
+                                    th:data-model-mapping="${provider.modelMapping}">
+                                <i class="bi bi-pencil"></i> 编辑
+                            </button>
+                            <!-- 停用/启用 -->
+                            <form th:if="${provider.status == 'ACTIVE'}"
+                                  th:action="@{'/admin/providers/' + ${provider.id} + '/deactivate'}" method="post"
+                                  onsubmit="return confirm('确认停用供应商 ' + this.dataset.providerName + '？停用后该供应商将立即从路由中移除。')"
+                                  th:data-provider-name="${provider.name}">
+                                <button class="btn btn-outline-warning btn-sm">
+                                    <i class="bi bi-pause-circle"></i> 停用
+                                </button>
+                            </form>
+                            <form th:if="${provider.status != 'ACTIVE'}"
+                                  th:action="@{'/admin/providers/' + ${provider.id} + '/activate'}" method="post">
+                                <button class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-play-circle"></i> 启用
+                                </button>
+                            </form>
+                            <!-- 删除（仅 INACTIVE 显示） -->
+                            <form th:if="${provider.status != 'ACTIVE'}"
+                                  th:action="@{'/admin/providers/' + ${provider.id} + '/delete'}" method="post"
+                                  onsubmit="return confirm('确认删除供应商？此操作不可撤销。')">
+                                <button class="btn btn-outline-danger btn-sm">
+                                    <i class="bi bi-trash"></i> 删除
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(providers)}">
+                    <td colspan="10" class="text-center text-muted py-4">
+                        暂无供应商配置，点击右上角"新建供应商"添加
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 新建供应商弹窗 -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="/admin/providers/create" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle"></i> 新建 AI 供应商</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- 基础信息 -->
+                        <div class="col-md-6">
+                            <label class="form-label">供应商名称 <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required
+                                   placeholder="如：OpenAI、DeepSeek、Groq">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">优先级</label>
+                            <input type="number" name="priority" class="form-control" value="1" min="1"
+                                   placeholder="数值越小优先级越高">
+                            <div class="form-text">1 = 主路由，2 = 备用，数值越小优先级越高</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API 基础 URL <span class="text-danger">*</span></label>
+                            <input type="url" name="apiUrl" class="form-control" required
+                                   placeholder="如：https://api.openai.com 或 https://api.deepseek.com">
+                            <div class="form-text">填写到域名即可，无需加 /v1/chat/completions</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API Key <span class="text-danger">*</span></label>
+                            <input type="password" name="apiKey" class="form-control" required
+                                   placeholder="sk-...">
+                        </div>
+                        <!-- 价格配置 -->
+                        <div class="col-md-4">
+                            <label class="form-label">超时时间（毫秒）</label>
+                            <input type="number" name="timeout" class="form-control" value="10000" min="1000">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">输入价格（$/百万Token）</label>
+                            <input type="number" name="inputPricePerMillion" class="form-control"
+                                   value="1.0" min="0" step="0.01">
+                            <div class="form-text">DeepSeek≈0.27，GPT-4o≈2.50</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">输出价格（$/百万Token）</label>
+                            <input type="number" name="outputPricePerMillion" class="form-control"
+                                   value="2.0" min="0" step="0.01">
+                            <div class="form-text">DeepSeek≈1.10，GPT-4o≈10.00</div>
+                        </div>
+                        <!-- 模型映射（可选） -->
+                        <div class="col-12">
+                            <label class="form-label">模型映射 JSON（可选）</label>
+                            <textarea name="modelMapping" class="form-control font-monospace" rows="3"
+                                      placeholder='{"gpt-4": "deepseek-chat", "gpt-3.5-turbo": "deepseek-chat"}'></textarea>
+                            <div class="form-text">
+                                将客户端请求的模型名映射到上游实际模型名。留空则透传原始模型名。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-check-circle"></i> 创建并启用
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑供应商弹窗 -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="editForm" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil"></i> 编辑 AI 供应商</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId" name="_id">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">供应商名称 <span class="text-danger">*</span></label>
+                            <input type="text" id="editName" name="name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">优先级</label>
+                            <input type="number" id="editPriority" name="priority" class="form-control" min="1">
+                            <div class="form-text">数值越小优先级越高</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API 基础 URL <span class="text-danger">*</span></label>
+                            <input type="url" id="editApiUrl" name="apiUrl" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API Key</label>
+                            <input type="password" id="editApiKey" name="apiKey" class="form-control"
+                                   placeholder="不修改请留空（当前 Key 已隐藏）">
+                            <div class="form-text" id="editApiKeyPlaceholder"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">超时时间（毫秒）</label>
+                            <input type="number" id="editTimeout" name="timeout" class="form-control" min="1000">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">输入价格（$/百万Token）</label>
+                            <input type="number" id="editInputPrice" name="inputPricePerMillion"
+                                   class="form-control" min="0" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">输出价格（$/百万Token）</label>
+                            <input type="number" id="editOutputPrice" name="outputPricePerMillion"
+                                   class="form-control" min="0" step="0.01">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">模型映射 JSON（可选）</label>
+                            <textarea id="editModelMapping" name="modelMapping"
+                                      class="form-control font-monospace" rows="3"
+                                      placeholder='{"gpt-4": "deepseek-chat"}'></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> 保存修改
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<footer th:replace="~{layout :: footer}"></footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // 打开编辑弹窗并回显数据
+    function openEditModal(btn) {
+        document.getElementById('editId').value = btn.dataset.id;
+        document.getElementById('editName').value = btn.dataset.name;
+        document.getElementById('editApiUrl').value = btn.dataset.apiUrl;
+        document.getElementById('editApiKey').value = '';
+        document.getElementById('editApiKeyPlaceholder').textContent = '不修改请留空（当前 Key 已隐藏）';
+        document.getElementById('editPriority').value = btn.dataset.priority;
+        document.getElementById('editTimeout').value = btn.dataset.timeout;
+        document.getElementById('editInputPrice').value = btn.dataset.inputPrice;
+        document.getElementById('editOutputPrice').value = btn.dataset.outputPrice;
+        document.getElementById('editModelMapping').value = btn.dataset.modelMapping || '';
+        document.getElementById('editForm').action = '/admin/providers/' + btn.dataset.id + '/update';
+        new bootstrap.Modal(document.getElementById('editModal')).show();
+    }
+
+    // 每 30 秒异步刷新健康状态列，无需整页刷新
+    function refreshHealthStatus() {
+        fetch('/admin/providers/health')
+            .then(r => r.json())
+            .then(list => {
+                list.forEach(item => {
+                    const badge = document.querySelector('[data-health-name="' + item.name + '"]');
+                    if (!badge) return;
+                    if (item.configStatus !== 'ACTIVE') {
+                        badge.innerHTML = '<span class="badge bg-light text-muted">—</span>';
+                    } else if (item.healthy) {
+                        badge.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 正常</span>';
+                    } else {
+                        badge.innerHTML = '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> 异常</span>';
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+    setInterval(refreshHealthStatus, 30000);
+</script>
+</body>
+</html>

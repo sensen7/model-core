@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('租户管理 - ModelCore 超管')}"></head>
+<body class="d-flex flex-column min-vh-100">
+
+<!-- 超管专用导航栏 -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-danger">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/admin/tenants">
+            <i class="bi bi-shield-lock"></i> ModelCore 超管
+        </a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link active" href="/admin/tenants"><i class="bi bi-building"></i> 租户管理</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/providers"><i class="bi bi-cpu"></i> 供应商管理</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-fill-gear"></i> <span th:text="${username}">admin</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <form action="/logout" method="post">
+                                <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right"></i> 退出登录</button>
+                            </form>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid mt-4 flex-grow-1">
+    <!-- 提示信息 -->
+    <div th:if="${message}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${message}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <h4 class="mb-3"><i class="bi bi-building"></i> 租户管理</h4>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>租户名称</th>
+                    <th>联系邮箱</th>
+                    <th>余额</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="tenant : ${tenants}">
+                    <td th:text="${tenant.id}"></td>
+                    <td th:text="${tenant.name}"></td>
+                    <td th:text="${tenant.contactEmail ?: '-'}"></td>
+                    <td>$<span th:text="${#numbers.formatDecimal(tenant.balance, 1, 4)}"></span></td>
+                    <td>
+                        <span th:if="${tenant.status == 'ACTIVE'}" class="badge bg-success">正常</span>
+                        <span th:if="${tenant.status == 'SUSPENDED'}" class="badge bg-danger">已停用</span>
+                    </td>
+                    <td th:text="${#temporals.format(tenant.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <!-- 停用/启用 -->
+                            <form th:if="${tenant.status == 'ACTIVE'}" th:action="@{'/admin/tenants/' + ${tenant.id} + '/suspend'}" method="post">
+                                <button class="btn btn-outline-warning btn-sm" title="停用">
+                                    <i class="bi bi-pause-circle"></i> 停用
+                                </button>
+                            </form>
+                            <form th:if="${tenant.status != 'ACTIVE'}" th:action="@{'/admin/tenants/' + ${tenant.id} + '/activate'}" method="post">
+                                <button class="btn btn-outline-success btn-sm" title="启用">
+                                    <i class="bi bi-play-circle"></i> 启用
+                                </button>
+                            </form>
+                            <!-- 充值 -->
+                            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                                    th:data-bs-target="'#rechargeModal' + ${tenant.id}" title="充值">
+                                <i class="bi bi-cash-coin"></i> 充值
+                            </button>
+                        </div>
+                        <!-- 充值弹窗 -->
+                        <div class="modal fade" th:id="'rechargeModal' + ${tenant.id}" tabindex="-1">
+                            <div class="modal-dialog modal-sm">
+                                <div class="modal-content">
+                                    <form th:action="@{'/admin/tenants/' + ${tenant.id} + '/recharge'}" method="post">
+                                        <div class="modal-header">
+                                            <h6 class="modal-title">给租户充值</h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p class="text-muted mb-2">租户: <strong th:text="${tenant.name}"></strong></p>
+                                            <label class="form-label">充值金额（美元）</label>
+                                            <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="submit" class="btn btn-primary btn-sm">确认充值</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(tenants)}">
+                    <td colspan="7" class="text-center text-muted py-4">暂无租户</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<footer th:replace="~{layout :: footer}"></footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

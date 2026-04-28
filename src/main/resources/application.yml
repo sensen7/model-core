@@ -1,0 +1,79 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: model-core
+
+  # 开启 JDK 21 虚拟线程，所有请求线程均为虚拟线程，同步阻塞不占用平台线程
+  threads:
+    virtual:
+      enabled: true
+
+  # MariaDB 数据源配置
+  datasource:
+    url: jdbc:mariadb://192.168.1.250:3308/model_core?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: Aa135790123
+    driver-class-name: org.mariadb.jdbc.Driver
+
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Redis 配置（Lettuce 响应式驱动）
+  data:
+    redis:
+      host: 192.168.1.201
+      port: 6379
+      password: Aa135790!123
+      database: 7
+      timeout: 5000ms
+
+  # Thymeleaf 模板引擎配置
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+
+# JWT 配置
+jwt:
+  secret: ModelCore-Enterprise-JWT-Secret-Key-Must-Be-At-Least-256-Bits-Long-For-HS256
+  expiration: 86400000  # 24小时（毫秒）
+
+# 上游 AI 供应商配置
+provider:
+  primary:
+    name: DeepSeek
+    url: https://api.deepseek.com
+    api-key: sk-85affb11e0654a6b945eb531a9c1aa67
+    timeout: 10000  # 10秒超时
+  fallback:
+    name: Groq
+    url: https://api.groq.com
+    api-key: your-groq-api-key
+    timeout: 15000  # 15秒超时
+
+# 日志级别
+logging:
+  level:
+    root: INFO
+    com.modelcore: DEBUG
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  # 只扫描 API 网关 Controller，不暴露后台管理接口
+  paths-to-match:
+    - /v1/**

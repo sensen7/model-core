@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('调用日志 - ModelCore')}"></head>
+<body class="d-flex flex-column min-vh-100">
+<nav th:replace="~{layout :: navbar}"></nav>
+
+<div class="container-fluid mt-4 flex-grow-1">
+    <h4 class="mb-3"><i class="bi bi-journal-text"></i> 调用日志</h4>
+
+    <!-- 筛选条件 -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <form action="/logs" method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">按 API Key 筛选</label>
+                    <select name="apiKeyId" class="form-select">
+                        <option value="">全部 Key</option>
+                        <option th:each="key : ${keys}" th:value="${key.id}"
+                                th:text="${key.name + ' (' + key.keyValue.substring(0,10) + '...)'}"
+                                th:selected="${key.id == selectedKeyId}"></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> 查询
+                    </button>
+                </div>
+                <div class="col-md-6 text-end">
+                    <span class="text-muted me-3">共 <span th:text="${totalElements}">0</span> 条记录</span>
+                    <!-- 导出按钮：将当前筛选的 apiKeyId 传入导出接口，默认导出最近 30 天 -->
+                    <a th:href="@{/export/logs.csv(apiKeyId=${selectedKeyId})}"
+                       class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-download"></i> 导出 CSV
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 日志表格 -->
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>时间</th>
+                    <th>模型</th>
+                    <th>输入 Token</th>
+                    <th>输出 Token</th>
+                    <th>总 Token</th>
+                    <th>费用</th>
+                    <th>供应商</th>
+                    <th>耗时</th>
+                    <th>状态</th>
+                    <th>详情</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="log : ${logs}">
+                    <td th:text="${#temporals.format(log.createdAt, 'MM-dd HH:mm:ss')}"></td>
+                    <td><code th:text="${log.model}"></code></td>
+                    <td th:text="${log.promptTokens}"></td>
+                    <td th:text="${log.completionTokens}"></td>
+                    <td th:text="${log.totalTokens}"></td>
+                    <td>$<span th:text="${#numbers.formatDecimal(log.cost, 1, 4)}"></span></td>
+                    <td th:text="${log.provider}"></td>
+                    <td th:text="${log.duration != null ? log.duration + 'ms' : '-'}"></td>
+                    <td>
+                        <span th:if="${log.status == 'SUCCESS'}" class="badge bg-success">成功</span>
+                        <span th:if="${log.status == 'FAILED'}" class="badge bg-danger">失败</span>
+                        <span th:if="${log.status == 'FALLBACK'}" class="badge bg-warning">降级</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-secondary btn-sm"
+                                th:onclick="'showDetail(' + ${log.id} + ')'">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(logs)}">
+                    <td colspan="10" class="text-center text-muted py-4">暂无调用记录</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 分页 -->
+    <nav th:if="${totalPages > 1}" class="mt-3">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                <a class="page-link" th:href="@{/logs(page=${currentPage - 1}, apiKeyId=${selectedKeyId})}">上一页</a>
+            </li>
+            <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}" class="page-item"
+                th:classappend="${i == currentPage} ? 'active'">
+                <a class="page-link" th:href="@{/logs(page=${i}, apiKeyId=${selectedKeyId})}" th:text="${i + 1}"></a>
+            </li>
+            <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'disabled'">
+                <a class="page-link" th:href="@{/logs(page=${currentPage + 1}, apiKeyId=${selectedKeyId})}">下一页</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<footer th:replace="~{layout :: footer}"></footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- 日志详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> 调用详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="detailLoading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm"></div> 加载中...
+                </div>
+                <div id="detailContent" style="display:none">
+                    <h6 class="text-muted mb-1">请求体</h6>
+                    <pre id="detailRequest" class="bg-light p-3 rounded small" style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto"></pre>
+                    <h6 class="text-muted mb-1 mt-3">响应体</h6>
+                    <pre id="detailResponse" class="bg-light p-3 rounded small" style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto"></pre>
+                    <h6 class="text-muted mb-1 mt-3" id="detailErrorLabel" style="display:none">错误信息</h6>
+                    <pre id="detailError" class="bg-light p-3 rounded small text-danger" style="white-space:pre-wrap;display:none"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showDetail(logId) {
+        document.getElementById('detailLoading').style.display = 'block';
+        document.getElementById('detailContent').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('detailModal')).show();
+
+        fetch('/logs/' + logId + '/detail')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('detailRequest').textContent =
+                    tryFormat(data.requestBody) || '（无）';
+                document.getElementById('detailResponse').textContent =
+                    tryFormat(data.responseBody) || '（无）';
+                if (data.errorMessage) {
+                    document.getElementById('detailErrorLabel').style.display = 'block';
+                    document.getElementById('detailError').style.display = 'block';
+                    document.getElementById('detailError').textContent = data.errorMessage;
+                } else {
+                    document.getElementById('detailErrorLabel').style.display = 'none';
+                    document.getElementById('detailError').style.display = 'none';
+                }
+                document.getElementById('detailLoading').style.display = 'none';
+                document.getElementById('detailContent').style.display = 'block';
+            })
+            .catch(() => {
+                document.getElementById('detailLoading').textContent = '加载失败';
+            });
+    }
+
+    // 尝试格式化 JSON，失败则原样返回
+    function tryFormat(str) {
+        if (!str) return str;
+        try { return JSON.stringify(JSON.parse(str), null, 2); } catch { return str; }
+    }
+</script>

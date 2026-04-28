@@ -1,0 +1,36 @@
+## 生产环境配置（敏感信息通过环境变量注入）
+spring:
+  datasource:
+    url: jdbc:mariadb://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:model_core}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+  thymeleaf:
+    cache: true
+
+jwt:
+  secret: ${JWT_SECRET:ModelCore-Enterprise-JWT-Secret-Key-Must-Be-At-Least-256-Bits-Long-For-HS256}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+provider:
+  primary:
+    api-key: ${DEEPSEEK_API_KEY:}
+  fallback:
+    api-key: ${GROQ_API_KEY:}
+
+logging:
+  level:
+    root: WARN
+    com.modelcore: INFO

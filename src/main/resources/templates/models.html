@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('可用模型 - ModelCore')}"></head>
+<body class="d-flex flex-column min-vh-100">
+<nav th:replace="~{layout :: navbar}"></nav>
+
+<div class="container-fluid mt-4 flex-grow-1">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0"><i class="bi bi-grid"></i> 可用模型</h4>
+        <span class="text-muted small">仅展示当前已启用的供应商和模型，健康状态每 30 秒自动刷新</span>
+    </div>
+
+    <!-- 无供应商提示 -->
+    <div th:if="${#lists.isEmpty(providerViews)}" class="alert alert-warning">
+        <i class="bi bi-exclamation-circle"></i> 当前没有可用的供应商，请联系管理员配置。
+    </div>
+
+    <!-- 供应商卡片列表，按优先级排列 -->
+    <div class="row g-4" th:unless="${#lists.isEmpty(providerViews)}">
+        <div class="col-md-6 col-xl-4" th:each="p : ${providerViews}">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-cpu"></i>
+                        <strong th:text="${p.name}"></strong>
+                        <span class="badge bg-secondary ms-1"
+                              th:text="'优先级 ' + ${p.priority}"></span>
+                    </span>
+                    <!-- 健康状态徽章，data-health-name 供 JS 刷新定位 -->
+                    <span th:attr="data-health-name=${p.name}">
+                        <span th:if="${p.healthy}" class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> 正常
+                        </span>
+                        <span th:unless="${p.healthy}" class="badge bg-danger">
+                            <i class="bi bi-exclamation-triangle"></i> 异常
+                        </span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <!-- 价格信息 -->
+                    <div class="mb-3 text-muted small">
+                        <i class="bi bi-currency-dollar"></i>
+                        输入 <strong th:text="${'$' + p.inputPricePerMillion}"></strong> / 百万 Token &nbsp;·&nbsp;
+                        输出 <strong th:text="${'$' + p.outputPricePerMillion}"></strong> / 百万 Token
+                    </div>
+
+                    <!-- 模型名称列表 -->
+                    <div th:if="${!#lists.isEmpty(p.models)}">
+                        <div class="mb-1 text-muted small fw-bold">支持的模型名称（可直接在 model 字段使用）：</div>
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="badge bg-light text-dark border font-monospace"
+                                  th:each="modelName : ${p.models}"
+                                  th:text="${modelName}"></span>
+                        </div>
+                    </div>
+                    <!-- 未配置模型映射时的提示 -->
+                    <div th:if="${#lists.isEmpty(p.models)}" class="text-muted small">
+                        <i class="bi bi-info-circle"></i>
+                        该供应商未配置模型映射，可直接传入上游支持的原始模型名称。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer th:replace="~{layout :: footer}"></footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // 每 30 秒刷新健康状态徽章
+    function refreshHealth() {
+        fetch('/api/providers/health')
+            .then(r => r.json())
+            .then(list => {
+                list.forEach(item => {
+                    const cell = document.querySelector('[data-health-name="' + item.name + '"]');
+                    if (!cell) return;
+                    if (item.healthy) {
+                        cell.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 正常</span>';
+                    } else {
+                        cell.innerHTML = '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> 异常</span>';
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+    setInterval(refreshHealth, 30000);
+</script>
+</body>
+</html>

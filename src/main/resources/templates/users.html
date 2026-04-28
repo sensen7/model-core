@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('团队管理 - ModelCore')}"></head>
+<body class="d-flex flex-column min-vh-100">
+<nav th:replace="~{layout :: navbar}"></nav>
+
+<div class="container-fluid mt-4 flex-grow-1">
+    <!-- 提示信息 -->
+    <div th:if="${message}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${message}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="bi bi-people"></i> 团队管理</h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            <i class="bi bi-person-plus"></i> 添加成员
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>用户名</th>
+                    <th>邮箱</th>
+                    <th>角色</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="user : ${users}">
+                    <td th:text="${user.username}"></td>
+                    <td th:text="${user.email ?: '-'}"></td>
+                    <td>
+                        <span th:if="${user.role == 'ADMIN'}" class="badge bg-primary">管理员</span>
+                        <span th:if="${user.role == 'MEMBER'}" class="badge bg-info">成员</span>
+                    </td>
+                    <td>
+                        <span th:if="${user.status == 'ACTIVE'}" class="badge bg-success">正常</span>
+                        <span th:if="${user.status == 'DISABLED'}" class="badge bg-secondary">已禁用</span>
+                    </td>
+                    <td th:text="${#temporals.format(user.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                    <td>
+                        <!-- 不允许对自己操作 -->
+                        <div th:if="${user.role != 'ADMIN'}" class="btn-group btn-group-sm">
+                            <form th:if="${user.status == 'ACTIVE'}" th:action="@{'/users/' + ${user.id} + '/disable'}" method="post">
+                                <button class="btn btn-outline-warning btn-sm" title="禁用">
+                                    <i class="bi bi-pause-circle"></i>
+                                </button>
+                            </form>
+                            <form th:if="${user.status != 'ACTIVE'}" th:action="@{'/users/' + ${user.id} + '/enable'}" method="post">
+                                <button class="btn btn-outline-success btn-sm" title="启用">
+                                    <i class="bi bi-play-circle"></i>
+                                </button>
+                            </form>
+                        </div>
+                        <span th:if="${user.role == 'ADMIN'}" class="text-muted">-</span>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(users)}">
+                    <td colspan="6" class="text-center text-muted py-4">暂无团队成员</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 创建子账号弹窗 -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/users/create" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加团队成员</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">用户名</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" name="email" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码</label>
+                        <input type="password" name="password" class="form-control" minlength="6" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select name="role" class="form-select">
+                            <option value="MEMBER">普通成员</option>
+                            <option value="ADMIN">管理员</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<footer th:replace="~{layout :: footer}"></footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
